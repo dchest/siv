@@ -30,6 +30,7 @@ var (
 type Cipher struct {
 	h          hash.Hash
 	b          cipher.Block
+	d          []byte // precomputed CMAC(0)
 	tmp1, tmp2 []byte
 }
 
@@ -42,6 +43,11 @@ func newCipher(macBlock, ctrBlock cipher.Block) (c *Cipher, err error) {
 	c.b = ctrBlock
 	c.tmp1 = make([]byte, c.b.BlockSize())
 	c.tmp2 = make([]byte, c.b.BlockSize())
+
+	c.h.Write(c.tmp1)
+	c.d = c.h.Sum(nil)
+	c.h.Reset()
+
 	return c, nil
 }
 
@@ -132,6 +138,7 @@ func (c *Cipher) s2v(s [][]byte, sn []byte) []byte {
 	h.Reset()
 
 	tmp, d := c.tmp1, c.tmp2
+	copy(d, c.d)
 	zero(tmp)
 
 	// NOTE(dchest): RFC has this case, however with SIV it's not
@@ -149,10 +156,6 @@ func (c *Cipher) s2v(s [][]byte, sn []byte) []byte {
 			return h.Sum(tmp[:0])
 		}
 	*/
-
-	h.Write(tmp)
-	d = h.Sum(d[:0])
-	h.Reset()
 
 	for _, v := range s {
 		h.Write(v)
